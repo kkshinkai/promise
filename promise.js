@@ -19,7 +19,7 @@ class MyPromise {
       this.value = res;
       this.status = RESOLVED;
       this.onResolvedCallbacks.forEach(f => f());
-    }
+    };
 
     let reject = (err) => {
       // 2.1.2.1/2.1.3.1. When fulfilled/rejected, a promise must not transition
@@ -29,12 +29,12 @@ class MyPromise {
       this.value = err;
       this.status = REJECTED;
       this.onRejectedCallbacks.forEach(f => f());
-    }
+    };
 
     try {
-      executor(resolve, reject)
+      executor(resolve, reject);
     } catch (err) {
-      reject(err)
+      reject(err);
     }
   }
 
@@ -46,24 +46,48 @@ class MyPromise {
 
     let newPromise = new MyPromise((resolve, reject) => {
       switch (this.status) {
-        case RESOLVED:
-          {
-            // Add a new microtask to the queue.
+      case RESOLVED:
+        {
+          // Add a new microtask to the queue.
+          setTimeout(() => {
+            // This is an asynchronous operation, try-catch in constructor cannot
+            // catch the exception. We need to try it again here.
+            try {
+              // `x` may be a promise or a value.
+              let x = onFulfilled(this.value);
+              resolvePromise(newPromise, x, resolve, reject);
+            } catch (err) {
+              reject(err);
+            }
+          }, 0);
+        }
+        break;
+      case REJECTED:
+        {
+          setTimeout(() => {
+            try {
+              let x = onRejected(this.value);
+              resolvePromise(newPromise, x, resolve, reject);
+            } catch (err) {
+              reject(err);
+            }
+          }, 0);
+        }
+        break;
+      case PENDING:
+        {
+          this.onResolvedCallbacks.push(() => {
             setTimeout(() => {
-              // This is an asynchronous operation, try-catch in constructor cannot
-              // catch the exception. We need to try it again here.
               try {
-                // `x` may be a promise or a value.
                 let x = onFulfilled(this.value);
                 resolvePromise(newPromise, x, resolve, reject);
               } catch (err) {
                 reject(err);
               }
             }, 0);
-          }
-          break;
-        case REJECTED:
-          {
+          });
+
+          this.onRejectedCallbacks.push(() => {
             setTimeout(() => {
               try {
                 let x = onRejected(this.value);
@@ -72,33 +96,9 @@ class MyPromise {
                 reject(err);
               }
             }, 0);
-          }
-          break;
-        case PENDING:
-          {
-            this.onResolvedCallbacks.push(() => {
-              setTimeout(() => {
-                try {
-                  let x = onFulfilled(this.value);
-                  resolvePromise(newPromise, x, resolve, reject);
-                } catch (err) {
-                  reject(err);
-                }
-              }, 0);
-            });
-
-            this.onRejectedCallbacks.push(() => {
-              setTimeout(() => {
-                try {
-                  let x = onRejected(this.value);
-                  resolvePromise(newPromise, x, resolve, reject);
-                } catch (err) {
-                  reject(err);
-                }
-              }, 0);
-            });
-          }
-          break;
+          });
+        }
+        break;
       }
     });
 
@@ -110,22 +110,22 @@ class MyPromise {
   }
 
   static resolve(data) {
-    return new MyPromise((resolve, _reject) => {
+    return new MyPromise(resolve => {
       resolve(data);
-    })
+    });
   }
 
   static reject(reason) {
     return new MyPromise((_resolve, reject) => {
       reject(reason);
-    })
+    });
   }
 
   finally(callback) {
     return this.then(
       value => MyPromise.resolve(callback()).then(() => value),
       reason => MyPromise.resolve(callback()).then(() => { throw reason; })
-    )
+    );
   }
 
   static all(promises) {
@@ -135,20 +135,20 @@ class MyPromise {
       const processData = (key, data) => {
         results[key] = data;
         if (++count === promises.length) {
-          resolve(results)
+          resolve(results);
         }
-      }
+      };
       for (let i = 0; i < promises.length; i++) {
         let result = promises[i];
         if (isPromise(result)) {
           result.then(data => {
             processData(i, data);
-          }, reject)
+          }, reject);
         } else {
-          processData(i, result)
+          processData(i, result);
         }
       }
-    })
+    });
   }
 
   static race(promises) {
@@ -156,7 +156,7 @@ class MyPromise {
       for (let i = 0; i < promises.length; i++) {
         let result = promises[i];
         if (isPromise(result)) {
-          result.then(resolve, reject)
+          result.then(resolve, reject);
         } else {
           resolve(result);
         }
@@ -178,7 +178,7 @@ const resolvePromise = (newPromise, x, resolve, reject) => {
   // 2.3.1. If `promise` and `x` refer to the same object, reject promise with a
   // `TypeError` as the reason.
   if (newPromise === x) {
-    return reject(new TypeError('Chaining cycle detected for promise #<Promise>'))
+    return reject(new TypeError('Chaining cycle detected for promise #<Promise>'));
   }
 
   let called = false; // Don't call `resolve` or `reject` more than once.
@@ -209,19 +209,19 @@ const resolvePromise = (newPromise, x, resolve, reject) => {
   } else { // A trivial value, just resolve it.
     resolve(x);
   }
-}
+};
 
 const isPromise =
   obj => typeof obj === 'function' ||
          typeof obj === 'object' && obj !== null && obj.then && typeof obj.then === 'function';
 
 MyPromise.defer = MyPromise.deferred = () => {
-    let dfd = {};
-    dfd.promise = new MyPromise((resolve, reject) => {
-      dfd.resolve = resolve;
-      dfd.reject = reject;
-    })
-    return dfd
-}
+  let dfd = {};
+  dfd.promise = new MyPromise((resolve, reject) => {
+    dfd.resolve = resolve;
+    dfd.reject = reject;
+  });
+  return dfd;
+};
 
-module.exports = MyPromise
+module.exports = MyPromise;

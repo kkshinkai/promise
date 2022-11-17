@@ -4,7 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "promises-aplus-tests promise.js"
+    "test": "promises-aplus-tests promise.js",
+    "lint": "eslint promise.js"
   },
   "repository": {
     "type": "git",
@@ -19,5 +20,8 @@
   "homepage": "https://github.com/kkshinkai/promise#readme",
   "dependencies": {
     "promises-aplus-tests": "^2.1.2"
+  },
+  "devDependencies": {
+    "eslint": "^8.27.0"
   }
 }
